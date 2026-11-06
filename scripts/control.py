@@ -7,7 +7,7 @@ import os
 import subprocess
 import tarfile
 
-from common import APP, CONFIG, STATE, LOGS, api
+from common import APP, CONFIG, STATE, LOGS, api, wait_ready
 
 
 def main():
@@ -24,6 +24,8 @@ def main():
             from pathlib import Path
             (Path(service) / "down").unlink(missing_ok=True)
         subprocess.run(["sv", "-w", "20", {"start": "up", "stop": "down", "restart": "restart"}[args.action], service], check=True)
+        if args.action != "stop":
+            wait_ready()
     elif args.action == "status":
         subprocess.run(["sv", "status", service], check=True)
         status = api("/status")
@@ -55,6 +57,7 @@ def main():
         finally:
             if running:
                 subprocess.run(["sv", "-w", "20", "up", service], check=True)
+                wait_ready()
 
 
 if __name__ == "__main__":

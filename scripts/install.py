@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 
-from common import APP, CONFIG, STATE, LOGS, api, private_write
+from common import APP, CONFIG, STATE, LOGS, api, private_write, wait_ready
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -176,6 +176,7 @@ def main():
         raise RuntimeError("Unmanaged homedns service exists; refusing to replace")
     (service / "log").mkdir(parents=True, exist_ok=True)
     (service / ".homedns-managed").touch(mode=0o600)
+    (service / "down").unlink(missing_ok=True)
     import shlex
     private_write(service / "run", f"#!{prefix}/bin/sh\nexec 2>&1\numask 077\nexec " + shlex.join(command) + "\n")
     private_write(service / "log/run", f"#!{prefix}/bin/sh\nexec svlogd -tt {shlex.quote(str(LOGS / 'service'))}\n")
@@ -191,6 +192,7 @@ def main():
     # The subsequent sv command is the actual readiness check.
     subprocess.run(["service-daemon", "start"], check=False)
     subprocess.run(["sv", "-w", "20", "up", str(service)], check=True)
+    wait_ready()
     print("AdGuard Home installed. DNS:", args.dns_port, "Admin: loopback:13000")
     print("Wi-Fi cutover still requires router support for the nonstandard DNS port.")
 

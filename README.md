@@ -77,7 +77,7 @@ Padrões iniciais: filtros padrão do AdGuard Home, atualização de listas a ca
 
 ## Antes de trocar o DNS do Wi-Fi
 
-Siga [a ativação e reversão no roteador](docs/router.md). Teste pelo computador na mesma rede:
+Siga [a ativação e reversão no roteador](docs/router.md). Se os controles estiverem bloqueados pela operadora, use [este pedido de liberação](docs/operator-request.md). Teste pelo computador na mesma rede:
 
 ```bash
 python3 scripts/check.py IP_DO_CELULAR --port 1053

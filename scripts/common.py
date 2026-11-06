@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import socket
+import time
 import urllib.request
 
 CONFIG = Path.home() / ".config/homedns"
@@ -30,7 +32,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def api(path, data=None, method=None, authenticated=True):
+def api(path, data=None, method=None, authenticated=True, timeout=90):
     headers = {"Content-Type": "application/json"}
     if authenticated:
         credentials = json.loads((CONFIG / "login.json").read_text())
@@ -43,9 +45,22 @@ def api(path, data=None, method=None, authenticated=True):
     )
     # Never proxy or redirect local administrator credentials.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-    with opener.open(request, timeout=90) as response:
+    with opener.open(request, timeout=timeout) as response:
         content = response.read()
     try:
         return json.loads(content)
     except json.JSONDecodeError:
         return content.decode()
+
+
+def wait_ready():
+    port = json.loads((CONFIG / "runtime.json").read_text())["dns_port"]
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            api("/status", timeout=2)
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                return
+        except OSError:
+            time.sleep(0.5)
+    raise RuntimeError("HomeDNS API and DNS listener did not become ready")
