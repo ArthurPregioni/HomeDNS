@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.cache/
+.venv/
+.local/
+AdGuardHome.yaml
+login.json
+*.db
+*.db-*
+*.log
+*.tar.gz
