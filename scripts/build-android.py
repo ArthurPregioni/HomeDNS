@@ -5,9 +5,16 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
+SHIM = "homedns_android_argv.go"
+
+
+def stray_go_files(listing):
+    """Untracked Go sources other than the shim. The compiler would take them into the upstream packages unnoticed."""
+    return sorted(name for name in listing.splitlines() if name.strip() and name != SHIM)
 
 
 def main():
@@ -28,9 +35,12 @@ def main():
         raise RuntimeError("Unexpected upstream commit")
     if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=source):
         raise RuntimeError("Upstream source modified; refusing to build")
-    import shutil
     shim = ROOT / "config/android-argv.go"
-    shutil.copyfile(shim, source / "homedns_android_argv.go")
+    shutil.copyfile(shim, source / SHIM)
+    stray = stray_go_files(subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard", "--", "*.go"], cwd=source, text=True))
+    if stray:
+        raise RuntimeError("Unexpected Go files in the upstream checkout; remove them or delete .cache: " + ", ".join(stray[:5]))
     go_version = subprocess.check_output([args.go, "version"], text=True).strip()
     if ("go" + release["go_version"] + " ") not in go_version:
         raise RuntimeError("Use Go " + release["go_version"])
@@ -38,7 +48,9 @@ def main():
     subprocess.run(["npm", "run", "build-prod"], cwd=source / "client_v2", check=True)
     package = "github.com/AdguardTeam/AdGuardHome/internal/version"
     flags = f"-s -w -X {package}.version={release['version']} -X {package}.channel=development"
-    env = dict(os.environ, CGO_ENABLED="0", GOOS="android", GOARCH="arm64", GOTELEMETRY="off", GOTOOLCHAIN="local")
+    # GOFLAGS and GOWORK from the builder's own environment must not change which sources and modules are compiled.
+    env = dict(os.environ, CGO_ENABLED="0", GOOS="android", GOARCH="arm64", GOTELEMETRY="off", GOTOOLCHAIN="local",
+               GOFLAGS="", GOWORK="off")
     output = artifact / "AdGuardHome"
     subprocess.run([args.go, "build", "-trimpath", "-buildmode=pie", "-ldflags", flags,
                     "-o", str(output), "."], cwd=source, env=env, check=True)

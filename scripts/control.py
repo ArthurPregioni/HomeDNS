@@ -4,6 +4,7 @@ import argparse
 import datetime
 import json
 import os
+from pathlib import Path
 import subprocess
 import tarfile
 
@@ -12,16 +13,23 @@ from common import APP, CONFIG, STATE, LOGS, api, wait_ready
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("status", "start", "stop", "restart", "refresh", "backup", "logs"))
+    parser.add_argument("action", choices=("status", "check", "start", "stop", "restart", "refresh", "backup", "logs"))
     args = parser.parse_args()
+    if not os.environ.get("PREFIX"):
+        parser.error("Run this inside Termux on the phone")
     service = os.environ["PREFIX"] + "/var/service/homedns"
-    if args.action in ("start", "stop", "restart"):
+    if args.action == "check":
+        # Real queries through the listener: an ordinary name resolves and an ad domain is blocked, over UDP and TCP.
+        import check
+        try:
+            check.check("127.0.0.1", json.loads((CONFIG / "runtime.json").read_text())["dns_port"])
+        except (RuntimeError, ValueError, OSError) as error:
+            parser.exit(1, f"FAIL: {error}\n")
+    elif args.action in ("start", "stop", "restart"):
         if args.action == "stop":
             # sv down alone is lost at reboot; down persists operator intent.
-            from pathlib import Path
             (Path(service) / "down").touch(mode=0o600)
         elif args.action == "start":
-            from pathlib import Path
             (Path(service) / "down").unlink(missing_ok=True)
         subprocess.run(["sv", "-w", "20", {"start": "up", "stop": "down", "restart": "restart"}[args.action], service], check=True)
         if args.action != "stop":

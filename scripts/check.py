@@ -100,9 +100,19 @@ def check(server, port):
         print(f"{protocol}: ordinary domain resolves; ad domain blocked (A and AAAA)")
 
 
-if __name__ == "__main__":
+def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("server", help="IPv4 address of the DNS server")
     parser.add_argument("--port", type=int, default=1053)
-    args = parser.parse_args()
-    check(args.server, args.port)
+    args = parser.parse_args(arguments)
+    try:
+        check(args.server, args.port)
+    except (RuntimeError, ValueError, OSError) as error:
+        # One readable line and a failing exit status instead of a traceback: no answer is a normal result here.
+        print(f"FAIL: {error}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

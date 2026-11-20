@@ -9,16 +9,43 @@ from pathlib import Path
 import platform
 import re
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
 import time
 import urllib.error
-import urllib.request
 
 from common import APP, CONFIG, STATE, LOGS, api, private_write, wait_ready
 
 ROOT = Path(__file__).resolve().parents[1]
+UPSTREAMS = ["https://dns.quad9.net/dns-query", "https://cloudflare-dns.com/dns-query"]
+BOOTSTRAP = ["9.9.9.9", "1.1.1.1"]
+# An expired answer is served at once while a fresh one is fetched: replies stay quick and a short
+# upstream failure goes unnoticed. 16 MiB holds a household's names without pressing the phone.
+CACHE = {"cache_enabled": True, "cache_size": 16 * 1024 * 1024, "cache_optimistic": True}
+
+
+def seed_config(username, hashed, address, lan, port):
+    """First configuration, written before the service ever starts: private from the first second."""
+    return {
+        "schema_version": 34,
+        "http": {"address": "127.0.0.1:13000"},
+        "users": [{"name": username, "password": hashed}],
+        "language": "pt-br",
+        "dns": {"bind_hosts": ["127.0.0.1", str(address)], "port": port,
+                "allowed_clients": ["127.0.0.0/8", str(lan)],
+                "upstream_dns": UPSTREAMS, "bootstrap_dns": BOOTSTRAP,
+                "use_private_ptr_resolvers": False, "resolve_clients": False, **CACHE},
+        "querylog": {"enabled": False},
+    }
+
+
+def dns_settings():
+    """Resolver defaults applied on every installation run."""
+    return {"upstream_dns": UPSTREAMS, "bootstrap_dns": BOOTSTRAP, "fallback_dns": [],
+            "ratelimit": 100, "blocking_mode": "default",
+            "use_private_ptr_resolvers": False, "resolve_clients": False, **CACHE}
 
 
 def expose_dns(config, address):
@@ -59,10 +86,18 @@ def main():
         with socket.socket(socket.AF_INET, kind) as sock:
             if kind == socket.SOCK_STREAM:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(("0.0.0.0", port))
+            try:
+                sock.bind(("0.0.0.0", port))
+            except OSError:
+                parser.error(f"Port {port} is in use. Stop only the homedns service before installing again.")
 
     release = json.loads((ROOT / "config/release.json").read_text())
     binary = APP / "bin/AdGuardHome"
+    missing = [name for name in ("provenance.json", "hash-password", "ADGUARD-LICENSE.txt")
+               if not args.binary.with_name(name).is_file()]
+    if not args.binary.is_file() or missing:
+        parser.error("Incomplete Android build: copy the whole .cache/android-arm64 folder ("
+                     + ", ".join(missing or [args.binary.name]) + " not found).")
     if args.binary:
         metadata = json.loads(args.binary.with_name("provenance.json").read_text())
         digest = hashlib.sha256(args.binary.read_bytes()).hexdigest()
@@ -102,18 +137,7 @@ def main():
         # is intended. Seed the documented config instead; root is unnecessary.
         hashed = subprocess.check_output([str(APP / "bin/hash-password")],
                                          input=credentials["password"].encode()).decode().strip()
-        private_write(config, json.dumps({
-            "schema_version": 34,
-            "http": {"address": "127.0.0.1:13000"},
-            "users": [{"name": credentials["username"], "password": hashed}],
-            "language": "pt-br",
-            "dns": {"bind_hosts": ["127.0.0.1", str(address)], "port": args.dns_port,
-                    "allowed_clients": ["127.0.0.0/8", str(lan)],
-                    "upstream_dns": ["https://dns.quad9.net/dns-query", "https://cloudflare-dns.com/dns-query"],
-                    "bootstrap_dns": ["9.9.9.9", "1.1.1.1"],
-                    "use_private_ptr_resolvers": False, "resolve_clients": False},
-            "querylog": {"enabled": False},
-        }, indent=2) + "\n")
+        private_write(config, json.dumps(seed_config(credentials["username"], hashed, address, lan, args.dns_port), indent=2) + "\n")
     elif config.read_text().lstrip().startswith("{"):
         seed = json.loads(config.read_text())
         seed["dns"]["bind_hosts"] = ["127.0.0.1", str(address)]
@@ -137,12 +161,7 @@ def main():
                 raise RuntimeError("Initial API did not become ready")
             api("/access/set", {"allowed_clients": ["127.0.0.0/8", str(lan)],
                                 "disallowed_clients": [], "blocked_hosts": []})
-            api("/dns_config", {
-                "upstream_dns": ["https://dns.quad9.net/dns-query", "https://cloudflare-dns.com/dns-query"],
-                "bootstrap_dns": ["9.9.9.9", "1.1.1.1"], "fallback_dns": [],
-                "ratelimit": 100, "blocking_mode": "default",
-                "use_private_ptr_resolvers": False, "resolve_clients": False,
-            })
+            api("/dns_config", dns_settings())
             querylog = api("/querylog/config")
             querylog.update(enabled=False, anonymize_client_ip=True)
             api("/querylog/config/update", querylog, method="PUT")
@@ -177,7 +196,6 @@ def main():
     (service / "log").mkdir(parents=True, exist_ok=True)
     (service / ".homedns-managed").touch(mode=0o600)
     (service / "down").unlink(missing_ok=True)
-    import shlex
     private_write(service / "run", f"#!{prefix}/bin/sh\nexec 2>&1\numask 077\nexec " + shlex.join(command) + "\n")
     private_write(service / "log/run", f"#!{prefix}/bin/sh\nexec svlogd -tt {shlex.quote(str(LOGS / 'service'))}\n")
     (LOGS / "service").mkdir(mode=0o700, exist_ok=True)
