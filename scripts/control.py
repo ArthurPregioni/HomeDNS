@@ -8,12 +8,12 @@ from pathlib import Path
 import subprocess
 import tarfile
 
-from common import APP, CONFIG, STATE, LOGS, api, wait_ready
+from common import APP, CACHE, CONFIG, STATE, LOGS, api, wait_ready
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("status", "check", "start", "stop", "restart", "refresh", "backup", "logs"))
+    parser.add_argument("action", choices=("status", "check", "tune", "start", "stop", "restart", "refresh", "backup", "logs"))
     args = parser.parse_args()
     if not os.environ.get("PREFIX"):
         parser.error("Run this inside Termux on the phone")
@@ -25,6 +25,12 @@ def main():
             check.check("127.0.0.1", json.loads((CONFIG / "runtime.json").read_text())["dns_port"])
         except (RuntimeError, ValueError, OSError) as error:
             parser.exit(1, f"FAIL: {error}\n")
+    elif args.action == "tune":
+        # Only the cache settings of the installer, on the running service: upstreams, filters and
+        # anything changed in the panel stay as they are, and the process keeps running.
+        api("/dns_config", CACHE)
+        current = api("/dns_info")
+        print(json.dumps({key: current.get(key) for key in CACHE}, indent=2))
     elif args.action in ("start", "stop", "restart"):
         if args.action == "stop":
             # sv down alone is lost at reboot; down persists operator intent.

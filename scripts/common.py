@@ -13,6 +13,9 @@ STATE = Path.home() / ".local/share/homedns"
 LOGS = Path.home() / ".local/state/homedns"
 APP = Path.home() / "apps/homedns"
 API = "http://127.0.0.1:13000/control"
+# An expired answer is served at once while a fresh one is fetched: replies stay quick and a short
+# upstream failure goes unnoticed. 16 MiB holds a household's names without pressing the phone.
+CACHE = {"cache_enabled": True, "cache_size": 16 * 1024 * 1024, "cache_optimistic": True}
 
 
 def private_write(path, text):

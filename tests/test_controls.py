@@ -84,6 +84,20 @@ class ControlTests(unittest.TestCase):
         self.assertIn("FAIL: UDP: ad domain not blocked", output)
         self.assertNotIn("Traceback", output)
 
+    def test_tune_sends_only_the_cache_settings_to_the_running_service(self):
+        calls = []
+
+        def fake(path, data=None, **options):
+            calls.append((path, data))
+            return {"cache_enabled": True, "cache_size": 16777216, "cache_optimistic": True, "upstream_dns": ["kept"]}
+        output = io.StringIO()
+        with mock.patch.object(control, "api", fake), mock.patch.object(sys, "argv", ["control.py", "tune"]), \
+                mock.patch.dict(os.environ, {"PREFIX": "/data/data/com.termux/files/usr"}), contextlib.redirect_stdout(output):
+            control.main()
+        self.assertEqual(calls, [("/dns_config", {"cache_enabled": True, "cache_size": 16 * 1024 * 1024, "cache_optimistic": True}),
+                                 ("/dns_info", None)])
+        self.assertEqual(json.loads(output.getvalue()), {"cache_enabled": True, "cache_size": 16777216, "cache_optimistic": True})
+
     def test_outside_termux_nothing_is_attempted(self):
         output = io.StringIO()
         with mock.patch.object(sys, "argv", ["control.py", "status"]), mock.patch.dict(os.environ, {}, clear=True), \

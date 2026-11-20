@@ -16,14 +16,11 @@ import subprocess
 import time
 import urllib.error
 
-from common import APP, CONFIG, STATE, LOGS, api, private_write, wait_ready
+from common import APP, CACHE, CONFIG, STATE, LOGS, api, private_write, wait_ready
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAMS = ["https://dns.quad9.net/dns-query", "https://cloudflare-dns.com/dns-query"]
 BOOTSTRAP = ["9.9.9.9", "1.1.1.1"]
-# An expired answer is served at once while a fresh one is fetched: replies stay quick and a short
-# upstream failure goes unnoticed. 16 MiB holds a household's names without pressing the phone.
-CACHE = {"cache_enabled": True, "cache_size": 16 * 1024 * 1024, "cache_optimistic": True}
 
 
 def seed_config(username, hashed, address, lan, port):

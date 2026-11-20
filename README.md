@@ -66,13 +66,14 @@ Dentro do Termux/SSH:
 ```bash
 python ~/apps/homedns/source/scripts/control.py status
 python ~/apps/homedns/source/scripts/control.py check
+python ~/apps/homedns/source/scripts/control.py tune
 python ~/apps/homedns/source/scripts/control.py refresh
 python ~/apps/homedns/source/scripts/control.py logs
 python ~/apps/homedns/source/scripts/control.py restart
 python ~/apps/homedns/source/scripts/control.py backup
 ```
 
-`check` faz consultas reais ao serviço no próprio celular, por UDP e TCP: um site comum precisa resolver e um domínio de publicidade precisa vir bloqueado. `status` mostra o que o painel informa; `check` mostra o que a rede recebe. `stop` desativa também a partida após reboot; `start` a reativa. `backup` pausa brevemente só o HomeDNS para copiar configuração e dados consistentes, restaurando o estado de execução. O backup contém credenciais e fica fora do repositório.
+`check` faz consultas reais ao serviço no próprio celular, por UDP e TCP: um site comum precisa resolver e um domínio de publicidade precisa vir bloqueado. `status` mostra o que o painel informa; `check` mostra o que a rede recebe. `tune` aplica ao serviço em execução somente o cache descrito abaixo, sem reinstalar e sem mexer em upstreams, filtros ou no que foi ajustado pelo painel. `stop` desativa também a partida após reboot; `start` a reativa. `backup` pausa brevemente só o HomeDNS para copiar configuração e dados consistentes, restaurando o estado de execução. O backup contém credenciais e fica fora do repositório.
 
 Padrões iniciais: filtros padrão do AdGuard Home, atualização de listas a cada 24h, upstreams Quad9/Cloudflare por HTTPS, consultas aceitas somente de localhost e da sub-rede indicada, painel restrito a localhost, histórico detalhado de consultas desativado. O cache tem 16 MiB e é otimista: uma resposta vencida é entregue na hora enquanto outra é buscada, o que mantém a navegação rápida e encobre falhas curtas do resolvedor externo. Estatísticas agregadas podem conter nomes de domínios; são dados privados. Nenhum painel nem DNS é publicado por túnel na internet.
 
