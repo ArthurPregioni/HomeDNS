@@ -87,7 +87,12 @@ python3 scripts/check.py IP_DO_CELULAR --port 1053
 
 Isso verifica UDP/TCP, resolução de um site comum e bloqueio de um domínio de publicidade para A e AAAA. Não altera o DNS do computador. Depois da mudança no roteador, repita contra **o IP do roteador na porta 53** e confira um segundo aparelho.
 
+## Atualizações
+
+O código de controle pode ser atualizado automaticamente por uma instalação do operador que faça checkout do repositório, execute os testes e confira uma consulta DNS comum e uma bloqueada após a troca. A versão do binário AdGuard Home é pinada em `config/release.json`: mudar essa versão exige uma compilação Android nova, verificação do checksum e uma troca separada com reversão. Um `git pull` do código de controle não substitui o binário nem altera as listas e credenciais locais.
+
 ## Limites
+
 
 - DNS não remove todos os anúncios: os que usam o mesmo domínio do conteúdo, como muitos anúncios do YouTube, não são separáveis dessa forma. [Limitações do AdGuard Home](https://adguard-dns.io/kb/adguard-home/faq/).
 - VPN, DNS privado/DoH próprio e redes de convidados podem não usar o DNS distribuído pelo roteador. O DNS IPv6 também precisa ser configurado; não basta alterar só o IPv4.
